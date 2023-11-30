@@ -1910,7 +1910,8 @@ def report_spatiotemporal_updates(missing: defaultdict, already_defined: default
                     new_value = f"'{new_value}'"
                 msg2 += f" - {sample}: {name}: '{old_value}' (database: {new_value})\n"
 
-    msg = "\n\n".join([msg2, msg]).strip() + "\n"
+    if msg or msg2:
+        msg = "\n\n".join([msg2, msg]).strip() + "\n"
     return msg
 
 
