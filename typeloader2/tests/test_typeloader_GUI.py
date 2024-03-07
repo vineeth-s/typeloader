@@ -946,13 +946,15 @@ The following 1 samples had missing values in the oracle database:
         with open(webin_report, "r") as f:
             text = f.read()
             s = [line for line in text.split("\n") if line]
+            if "This was a TEST submission" in s[-1]:
+                s.pop(-1)  # remove very last line
             # check penultimate line:
             self.assertTrue("Files have been uploaded to webin" in s[-2] and "ebi.ac.uk." in s[-2])
             # check last line:
             s2 = s[-1].split(
-                "The TEST submission has been completed successfully. This was a TEST submission and no data was submitted. The following analysis accession was assigned to the submission: ")
+                "The submission has been completed successfully. The following analysis accession was assigned to the submission:")
             self.assertEqual(len(s2), 2)
-            submission_id = s2[-1]
+            submission_id = s2[-1].strip()
             self.assertEqual(submission_id, acc_analysis)
 
 
