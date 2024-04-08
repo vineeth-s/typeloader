@@ -369,6 +369,8 @@ def get_pretypings_from_limsrep(input_params, local_cf, log):
                     pretyping = pretypings[sample_id_int][col]
                     if pretyping == "ERROR":
                         problems.append(f"{sample_id_int}: could not handle {col}, please fix manually!")
+                    if pretyping == "NNNN" and col.startswith("HLA-DRB"):
+                        pretypings[sample_id_int][col] = "NEG"
     except Exception:
         close_connection(conn, cursor, log)
         raise
@@ -382,6 +384,7 @@ def write_pretypings_file(pretypings, samples, output_file, log):
     """
     log.info("Writing pretypings to file {}...".format(output_file))
     columns = ["HLA-A_1", "HLA-A_2", "HLA-B_1", "HLA-B_2", "HLA-C_1", "HLA-C_2", "HLA-DRB1_1", "HLA-DRB1_2",
+               "HLA-DRB3_1", "HLA-DRB3_2", "HLA-DRB4_1", "HLA-DRB4_2", "HLA-DRB5_1", "HLA-DRB5_2",
                "HLA-DQB1_1", "HLA-DQB1_2", "HLA-DPB1_1", "HLA-DPB1_2", "HLA-E_1", "HLA-E_2",
                "HLA-DPA1_1", "HLA-DPA1_2", "HLA-DQA1_1", "HLA-DQA1_2",
                "HLA-DMA_1", "HLA-DMA_2", "HLA-DMB_1", "HLA-DMB_2",

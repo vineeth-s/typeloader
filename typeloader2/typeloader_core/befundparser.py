@@ -6,7 +6,9 @@ from collections import defaultdict
 # some of the KIR loci have 3 or maybe 4 alleles
 # to be prepared, they are in the list, but probably not in the befund.csv
 useGenesList = ["HLA-A_1", "HLA-A_2", "HLA-B_1", "HLA-B_2", "HLA-C_1", "HLA-C_2",
-                "HLA-DRB1_1", "HLA-DRB1_2", "HLA-DQB1_1", "HLA-DQB1_2", "HLA-DPB1_1", "HLA-DPB1_2",
+                "HLA-DRB1_1", "HLA-DRB1_2",
+                "HLA-DRB3_1", "HLA-DRB3_2", "HLA-DRB4_1", "HLA-DRB4_2", "HLA-DRB5_1", "HLA-DRB5_2",
+                "HLA-DQB1_1", "HLA-DQB1_2", "HLA-DPB1_1", "HLA-DPB1_2",
                 "HLA-E_1", "HLA-E_2",
                 "HLA-DPA1_1", "HLA-DPA1_2", "HLA-DQA1_1", "HLA-DQA1_2",
                 "HLA-DMA_1", "HLA-DMA_2", "HLA-DMB_1", "HLA-DMB_2",

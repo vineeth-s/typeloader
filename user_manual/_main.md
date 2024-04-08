@@ -15,7 +15,7 @@ We are making TypeLoader available to others, to get all those full-length allel
  * Automatically annotates all exon-intron boundaries by finding the closest offically known allele and using it as a reference. [(=> How TypeLoader works)](typeloader_core.md)
  * Supported loci: 
 	 * HLA class I: HLA-A, -B, -C, -E, -F, -G, -H, -J, -K
-	 * HLA class II: HLA-DRB1, -DQB1, -DPB1, -DQA1, -DPA1, -DMA, -DMB, -DOA, -DOB
+	 * HLA class II: HLA-DRB1, -DQB1, -DPB1, -DRB3, -DRB4, -DRB5, -DQA1, -DPA1, -DMA, -DMB, -DOA, -DOB
 	 * KIR: all human KIR genes
 	 * MICA and MICB
 

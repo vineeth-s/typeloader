@@ -45,7 +45,7 @@ def read_local_settings(settings, log):
 
 def check_local(settings, log):
     """returns True if this is a DKMS user,
-    else returns False 
+    else returns False
     """
     permission = False
     local_cf = read_local_settings(settings, log)
@@ -124,7 +124,9 @@ def make_fake_ENA_file(project, log, settings, basis="local_name", parent=None):
     columns = []
 
     gene_dic = {}
-    for g in ["HLA-A", "HLA-B", "HLA-C", "HLA-DRB1", "HLA-DQB1", "HLA-DPB1", "HLA-E",
+    for g in ["HLA-A", "HLA-B", "HLA-C", "HLA-DRB1",
+              "HLA-DRB3", "HLA-DRB4", "HLA-DRB5",
+              "HLA-DQB1", "HLA-DPB1", "HLA-E",
               "HLA-F", "HLA-G", "HLA-H", "HLA-J", "HLA-K",
               "HLA-DMA", "HLA-DMB", "HLA-DOA", "HLA-DOB", "HLA-DQA1", "HLA-DPA1"
               ]:
@@ -177,7 +179,7 @@ def make_fake_ENA_file(project, log, settings, basis="local_name", parent=None):
                 gene_dic[mygene] = ["{}_1".format(mygene), "{}_2".format(mygene)]
                 columns += gene_dic[mygene]
                 for col in gene_dic[mygene]:
-                    befunde[mygene] = "01:01"
+                    befunde[col] = "01:01"
             if len(gene_dic[mygene]) == 1:
                 if mygene.startswith("MIC"):
                     if not partner_allele:
