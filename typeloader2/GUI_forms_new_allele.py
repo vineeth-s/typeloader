@@ -481,6 +481,8 @@ class NewAlleleForm(CollapsibleDialog):
                     self.name_lbl.setText(self.myallele.newAlleleName)
                     self.upload_btn.setEnabled(True)
                     self.upload_btn.setChecked(False)
+                    for warning in self.myalleles[0].warnings:
+                        QMessageBox.warning(self, "Potential problem with annotating this allele", warning)
                     self.proceed_sections(0, 2)
             else:
                 QMessageBox.warning(self, results[1], results[2])
@@ -710,6 +712,8 @@ class NewAlleleForm(CollapsibleDialog):
                         QMessageBox.warning(self, "Missing UTR", E.msg)
                         return
                     except Exception as E:
+                        self.log.error(E)
+                        self.log.exception(E)
                         QMessageBox.warning(self, "Error during ENA file creation", repr(E))
                         return
                 else:
@@ -719,11 +723,15 @@ class NewAlleleForm(CollapsibleDialog):
                 QMessageBox.warning(self, "Missing UTR", E.msg)
                 return
             except Exception as E:
+                self.log.error(E)
+                self.log.exception(E)
                 QMessageBox.warning(self, "Error during ENA file creation", repr(E))
                 return
 
             self.ENA_widget.setText(self.ENA_text)
             self.name_lbl.setText(self.myallele.newAlleleName)
+            for warning in self.myalleles[0].warnings:
+                QMessageBox.warning(self, "Potential problem with annotating this allele", warning)
             self.proceed_sections(1, 2)
 
         except Exception as E:
@@ -778,6 +786,7 @@ class NewAlleleForm(CollapsibleDialog):
                 self.discard_btn.setStyleSheet(general.btn_style_clickme)
                 self.unsaved_changes = True
         except Exception as E:
+            self.log.error(E)
             self.log.exception(E)
 
     @pyqtSlot()
@@ -807,6 +816,7 @@ class NewAlleleForm(CollapsibleDialog):
             else:
                 self.log.debug("No text to save...")
         except Exception as E:
+            self.log.error(E)
             self.log.exception(E)
 
     @pyqtSlot()
@@ -821,6 +831,7 @@ class NewAlleleForm(CollapsibleDialog):
             self.save_changes_btn.change_to_normal()
             self.log.debug("=> Success")
         except Exception as E:
+            self.log.error(E)
             self.log.exception(E)
 
     @pyqtSlot(int)
@@ -899,6 +910,7 @@ class NewAlleleForm(CollapsibleDialog):
                                     "Please specify project first!")
                 self.proceed_sections(2, 0)
         except Exception as E:
+            self.log.error(E)
             self.log.exception(E)
 
 

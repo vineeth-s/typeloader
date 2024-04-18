@@ -65,7 +65,7 @@ def getMismatchData(annotations):
         canonicalMMCodonNum = int(ceil(float(cdsPos)/3))
         
         """
-        # older version which was got class I codon assignments correct, and class II assignments wrong
+        # older version which got class I codon assignments correct, and class II assignments wrong
         # IMGT assigns the first codon in exon 2 as codon 1, and the codons in exon 1 with a -1 backwards
         if canonicalMMCodonNum > numExon1Coords: imgtMMCodonNum = canonicalMMCodonNum - numExon1Coords
         else: imgtMMCodonNum = canonicalMMCodonNum - (numExon1Coords + 1)
@@ -133,6 +133,27 @@ def getMismatchData(annotations):
             raise KeyError("Could not calculate annotation positions: Reference allele {} has no codon number {}!".format(closestallele, canonicalMMCodonNum))
 
     return mmCodons
+
+
+def pprint_annotations(annotations):
+    """Print the relevant annotations in a readable way.
+
+    This is just a helper function for debugging.
+    """
+    from pprint import pprint
+
+    for allele in annotations:
+        myannotations = copy(annotations[allele])
+
+        # remove uninteresting keys:
+        for key in ["closestAllele", "closestAlleleCdsSequence", "concatHSPS", "extraInformation", "features", "isExactMatch", "sequence"]:
+            try:
+                myannotations.pop(key)
+            except KeyError:
+                pass
+        myannotations["closestAlleleSequence"] = myannotations["closestAlleleSequence"][:20] + "..."
+
+        pprint(myannotations)
 
 
 def getCoordinates(blastXmlFilename, allelesFilename, targetFamily, settings, log, isENA=True,

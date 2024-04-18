@@ -115,9 +115,8 @@ def read_dat_file(dat_file, target, log, isENA = False, verbose = False):
 
             elif line.startswith("DE"):
                 s = line.split()
-                if target in ["HLA", "HLA_23_with_introns", "Phasing_HLA_23", "KIR"]:
-                    allele = s[1][:-1]
-                    locus = allele.split("*")[0]
+                allele = s[1][:-1]
+                locus = allele.split("*")[0]
 
             elif line.startswith("FT"):
                 s = line.split()
@@ -259,7 +258,7 @@ def make_parsed_files(target, ref_dir, log, restricted_to=None, target_dir=None)
     dump_file = os.path.join(myref_dir, f"parsed{target}.dump")
     version_file = os.path.join(myref_dir, f"curr_version_{target}.txt")
     allelename_file = os.path.join(ref_dir, f"{target}_allelenames.dump")
-    
+
     log.debug("\t\tReading alleles from {}...".format(ipd_file))
     alleles, version = read_dat_file(ipd_file, target.upper(), log)
     log.debug(f"\t\t\t=> found {len(alleles)} alleles")
@@ -293,7 +292,7 @@ def make_parsed_files(target, ref_dir, log, restricted_to=None, target_dir=None)
                         fasta_file.write("%s\n" % allele_data.seq)
                 else:
                     pass
-    
+
     log.debug("\t\tWriting {}...".format(dump_file))
     if restricted_to:  # limit dump file to chosen alleles
         alleles2 = {}

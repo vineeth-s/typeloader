@@ -34,22 +34,16 @@ def get_closest_known_alleles(blast_xml_filename, target_family, settings, log):
     return closestAllelesData
 
 
-def print_me(hsp_query, hsp_subject, hsp_match, concat_HSPs, hsp_start, hsp_align_len, query_length):
+def print_hsp(hsp_query, hsp_subject, hsp_match, concat_HSPs, hsp_start, hsp_align_len, query_length):
     """little debugging function
     """
-    for item in [hsp_query, hsp_subject, hsp_match, concat_HSPs, hsp_start, hsp_align_len, query_length]:
-        printme = [type(item)]
-        try:
-            length = len(item)
-        except TypeError:
-            length = None
-        printme.append(length)
-        if length:
-            # printme.append(item[-100:] + "...")  # print last section
-            printme.append("..." + item[-100:])  # print first section
-        else:
-            printme.append(item)
-        print(printme)
+    print(f"hsp_query:\t\t {hsp_query[:50]}...{hsp_query[-50:]} (len: {len(hsp_query)})")
+    print(f"hsp_subject:\t {hsp_subject[:50]}...{hsp_subject[-50:]} (len: {len(hsp_subject)})")
+    print(f"hsp_match:\t\t {hsp_match[:50]}...{hsp_match[-50:]} (len: {len(hsp_match)})")
+    print("concat_hsps: ", concat_HSPs)
+    print("hsp_start: ", hsp_start)
+    print("hsp_align_len: ", hsp_align_len)
+    print("query_length: ", query_length)
 
 
 def parse_blast(xml_records, target_family, query_fasta_file, settings, log):
@@ -108,12 +102,12 @@ def parse_blast(xml_records, target_family, query_fasta_file, settings, log):
         hsp_query, hsp_subject, hsp_match, concatHSPS, hsp_start, hsp_align_len = results
         query_start_overhang = 0
 
+        #print_hsp(hsp_query, hsp_subject, hsp_match, concatHSPS, hsp_start, hsp_align_len, queryLength)
         if hsp_query == "" and hsp_subject == "" and hsp_match == "":
             closestAlleles[queryId] = None
         else:
             if hsp_align_len < queryLength:  # incomplete alignment:
                 log.warning("Sequence did not align fully! Probably a mismatch within 3 bp of either sequence end!")
-                # print_me(hsp_query, hsp_subject, hsp_match, concatHSPS, hsp_start, hsp_align_len, queryLength)
                 results = fix_incomplete_alignment(ref_sequence, query_sequence, hsp_start, hsp_align_len, queryLength,
                                                    hsp_query, hsp_subject, hsp_match, closestAlleleName, log)
                 (hsp_query, hsp_subject, hsp_match, hsp_align_len, hsp_start, query_start_overhang) = results
@@ -314,7 +308,7 @@ def closest_allele_items(hsp_query, hsp_subject, hsp_match, closest_allele_name,
                           [hsp_subject[mismatchPos - 1] for mismatchPos in mismatchPositions]))
 
     # catch cases with undetected mismatches near end: (BLAST misses these)
-    if hsp_align_len < query_length:  # if not whole of query sequence could be aligned
+    if hsp_align_len < query_length - query_start_overhang:  # if not whole of query sequence could be aligned
         mismatches.append(('?', '?'))
         mismatchPositions.append(hsp_align_len + 1)  # up to this point, the alignment worked
         exactMatch = False

@@ -58,7 +58,7 @@ DATE_PATTERN = "^\d{4}(-\d{2})?(-\d{2})?$"
 
 class Allele:
     def __init__(self, gendx_result, gene, name, product, targetFamily, sample_id_int, settings, log,
-                 newAlleleName="", partner_allele="", parent=None, existing_values=None):
+                 newAlleleName="", closest_allele_name="", partner_allele="", parent=None, existing_values=None):
         self.gendx_result = gendx_result
         self.targetFamily = targetFamily
         self.gene = gene
@@ -73,8 +73,10 @@ class Allele:
         self.log = log
         self.newAlleleName = newAlleleName
         self.partner_allele = partner_allele
+        self.closest_allele_name = closest_allele_name
         self.null_allele = False
         self.parent = None
+        self.warnings = []
         if existing_values:
             (self.allele_nr, self.local_name) = existing_values
             self.cell_line = "_".join(self.local_name.split("_")[:2])
@@ -503,6 +505,16 @@ def remove_other_allele(blast_xml_file: str, fasta_file: str, other_allele_name:
     log.debug("\t=> Done!")
 
 
+def _create_overhang_warning(closest_allele_name: str, overhang_length: int) -> str:
+    msg = (f"Typeloader is using {closest_allele_name} as closest allele, whose 5' UTR begins {overhang_length} bp "
+           f"after the allele sequence you uploaded.\n"
+           f"This may (but does not have to!) lead to wrong annotations!\n"
+           f"Please check the results carefully before submitting.\n\n"
+           f"If the annotations are off, TypeLoader is currently unable to correctly process this allele. "
+           f"Please submit it to ENA & IPD manually. Sorry.")
+    return msg
+
+
 def process_sequence_file(project: str, filetype: str, blastXmlFile: str, targetFamily: str, fasta_filename: str,
                           allelesFilename: str, header_data: dict, settings: dict, log, incomplete_ok=False,
                           startover=False):
@@ -551,17 +563,22 @@ def process_sequence_file(project: str, filetype: str, blastXmlFile: str, target
                     products.append(flatfile_dic["productname_hla_i"])
 
             (gendx_result, gene, name, product) = (genDxAlleleNames[0], geneNames[0], alleleNames[0], products[0])
+            log.info(f"Closest known allele chosen by NGSEngine for allele 1: {genDxAlleleNames[0]}")
+            log.info(f"Closest known allele chosen by TypeLoader for allele 1: {closestAlleleNames[0]}")  # TODO: store closest known allele in db
             allele1 = Allele(gendx_result, gene, name, product, targetFamily, header_data["sample_id_int"], settings,
-                             log, existing_values=existing_values)
+                             log, closest_allele_name=closestAlleleNames[0], existing_values=existing_values)
 
             if len(genDxAlleleNames) > 1:
                 (gendx_result, gene, name, product) = (genDxAlleleNames[1], geneNames[1],
                                                        alleleNames[1], products[1])
                 allele2 = Allele(gendx_result, gene, name, product, targetFamily,
-                                 header_data["sample_id_int"], settings, log)
-            else:
+                                 header_data["sample_id_int"], settings, log,
+                                 closest_allele_name=closestAlleleNames[1])
+                log.info(f"Closest known allele chosen by NGSEngine for allele 2: {genDxAlleleNames[1]}")
+                log.info(f"Closest known allele chosen by TypeLoader for allele 2: {closestAlleleNames[1]}")  # TODO: store closest known allele in db
+            else:  # XML file contains only 1 allele
                 allele2 = Allele("", "", "", "", "", header_data["sample_id_int"], settings, log,
-                                 existing_values=existing_values)
+                                 closest_allele_name="", existing_values=existing_values)
 
             myalleles = [allele1, allele2]
             ENA_text = ""
@@ -595,6 +612,7 @@ def process_sequence_file(project: str, filetype: str, blastXmlFile: str, target
             # take the first sequence in fasta file
             alleleName = alleles[0]
             pseudogene = ""
+            warning = None
             if annotations[alleleName] is None:
                 # No BLAST hit at position 1
                 msg = "No BLAST hit at position 1"
@@ -603,7 +621,14 @@ def process_sequence_file(project: str, filetype: str, blastXmlFile: str, target
             else:
                 extraInformation = annotations[alleleName]["extraInformation"]
                 closestAlleleName = annotations[alleleName]["closestAllele"]
+                log.info(f"Closest known allele: {closestAlleleName}")
                 # ToDo: store closest allele in db
+
+                query_start_overhang = annotations[alleleName]['queryStartOverhang']
+                if query_start_overhang > 0:
+                    warning = _create_overhang_warning(closestAlleleName, query_start_overhang)
+                    log.warning(warning)
+
                 geneName = closestAlleleName.split("*")[0]
                 newAlleleName = "%s:new" % closestAlleleName.split(":")[0]
 
@@ -655,8 +680,10 @@ def process_sequence_file(project: str, filetype: str, blastXmlFile: str, target
 
                 myallele = Allele("", geneName, newAlleleName, productName_FT, targetFamily,
                                   header_data["sample_id_int"],
-                                  settings, log, newAlleleName, existing_values=existing_values)
+                                  settings, log, newAlleleName, closest_allele_name=closestAlleleName, existing_values=existing_values)
                 myallele.null_allele = null_allele
+                if warning:
+                    myallele.warnings.append(warning)
                 myalleles = [myallele]
                 db_name = targetFamily.upper()
                 generalData = BME.make_globaldata(gene_tag=gene_tag, gene=geneName, allele=newAlleleName,
@@ -687,11 +714,19 @@ def make_ENA_file(blastXmlFile: str, targetFamily: str, allele: Allele, settings
     annotations = COO.getCoordinates(blastXmlFile, allelesFilename, targetFamily, settings, log, isENA=True,
                                      incomplete_ok=incomplete_ok)
     posHash, sequences = EF.get_coordinates_from_annotation(annotations)
-    currentPosHash = posHash[allele.alleleName]
-    sequence = sequences[allele.alleleName]
+
+    alleleName = allele.gendx_result
+    currentPosHash = posHash[alleleName]
+    sequence = sequences[alleleName]
     enaPosHash = BME.transform(currentPosHash)
-    extraInformation = annotations[allele.alleleName]["extraInformation"]
-    features = annotations[allele.alleleName]["features"]
+    extraInformation = annotations[alleleName]["extraInformation"]
+    features = annotations[alleleName]["features"]
+
+    query_start_overhang = annotations[alleleName]['queryStartOverhang']
+    if query_start_overhang > 0:
+        warning = _create_overhang_warning(allele.closest_allele_name, query_start_overhang)
+        log.warning(warning)
+        allele.warnings.append(warning)
 
     if allele.geneName in settings["pseudogenes"].split("|"):
         allele.null_allele = False  # whole locus is already pseudogene

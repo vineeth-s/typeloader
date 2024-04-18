@@ -8,7 +8,9 @@ unit tests for typeloader_GUI
 @author: Bianca Schoene
 '''
 import gzip
+import logging
 import unittest
+from unittest import mock
 from unittest.mock import patch
 import os, sys, re, time, platform, datetime, csv
 import difflib  # compare strings
@@ -43,7 +45,7 @@ from typeloader2 import typeloader_functions
 from typeloader2.GUI_login import base_config_file, check_update_needed
 from typeloader2 import db_external
 
-from PyQt5.QtWidgets import (QApplication)
+from PyQt5.QtWidgets import QApplication, QMessageBox
 from PyQt5.QtCore import Qt, QTimer, QModelIndex
 
 # ===========================================================
@@ -1951,7 +1953,7 @@ class TestMakeIMGTFilesWith5PrimeOverhang(unittest.TestCase):
                                              curr_settings, log)
         self.assertTrue(imgt_data)
         cell_line = list(imgt_data.keys())[0]
-        diff_string = imgt_data[cell_line].split("CC")[1].split("XX")[0].strip()
+        diff_string = imgt_data[cell_line].split("CC  ")[1].split("XX")[0].strip()
         self.assertEqual(diff_string, self.diff_string)
 
 
@@ -3108,6 +3110,58 @@ class TestRejectXMLFiles(unittest.TestCase):
             self.assertTrue(msg.endswith("input files restricted to one locus and try again with these."))
 
 
+class TestOverhangWarning(unittest.TestCase):
+    """If start alignment is off, throw a warning. (TL2-293)"""
+    @classmethod
+    def setUpClass(self):
+        if skip_other_tests:
+            self.skipTest(self, "Skipping TestOverhangWarning because skip_other_tests is set to True")
+        else:
+            self.project_name = project_name
+            self.mydir = os.path.join(curr_settings["login_dir"], curr_settings["data_unittest"], "sorry_cannot_process")
+            self.myfile = os.path.join(self.mydir, "DRB1_09_01_02_03_insT.fa")
+            self.filetype = "fasta"
+            self.sample_id_int = "TL2-293"
+            self.sample_id_ext = "warn me please"
+            self.customer = "me"
+            self.logfile = "_temp_logfile.log"
+            self.temp_handler = logging.FileHandler(self.logfile)
+            log.addHandler(self.temp_handler)
+            log.setLevel(logging.WARNING)
+
+    @classmethod
+    def tearDownClass(self):
+        log.removeHandler(self.temp_handler)
+        log.setLevel(logging.DEBUG)
+
+    def test_throw_warning(self):
+        """test that the correct warning is thrown
+        """
+        success, results1 = typeloader_functions.handle_new_allele_parsing(project_name,
+                                                                           self.sample_id_int,
+                                                                           self.sample_id_ext,
+                                                                           self.myfile,
+                                                                           self.customer,
+                                                                           curr_settings, log)
+        self.assertTrue(success)
+
+        (header_data, filetype, sample_name, targetFamily,
+         temp_raw_file, blastXmlFile, fasta_filename, allelesFilename) = results1
+
+        results2 = typeloader_functions.process_sequence_file(project_name, filetype, blastXmlFile,
+                                                              targetFamily, fasta_filename,
+                                                              allelesFilename, header_data,
+                                                              curr_settings, log)
+
+        success = results2[0]
+        self.assertTrue(success)
+
+        with open(self.logfile, "r") as f:
+            captured = f.read()
+            exp_warning = "Typeloader is using HLA-DRB1*09:01:02:03 as closest allele, whose 5' UTR begins 1 bp after the allele sequence you uploaded."
+            self.assertTrue(exp_warning in captured)
+
+
 class TestRestrictedReference(unittest.TestCase):
     @classmethod
     def setUpClass(self):
@@ -3232,52 +3286,54 @@ class TestRestrictedReference(unittest.TestCase):
         restricted db but will work with the correct restricted db; check everythins works
         as expected)
         """
-        self.form = ALLELE.NewAlleleForm(log, mydb, self.project_name, curr_settings, None,
-                                         self.sample_id_int, self.sample_id_ext, testing=True)
-        self.dialog = self.form.dialog
-        self.assertFalse(self.dialog)  # dialog does not exist, yet
+        with mock.patch('PyQt5.QtWidgets.QMessageBox.warning', return_value=QMessageBox.Ok):
+            self.form = ALLELE.NewAlleleForm(log, mydb, self.project_name, curr_settings, None,
+                                             self.sample_id_int, self.sample_id_ext, testing=True)
+            self.dialog = self.form.dialog
+            self.assertFalse(self.dialog)  # dialog does not exist, yet
 
-        # enter test file:
-        self.form.file_widget.field.setText(self.myfile)
-        self.form.upload_btn.setEnabled(True)
-        self.form.upload_btn.click()
+            # enter test file:
+            self.form.file_widget.field.setText(self.myfile)
+            self.form.upload_btn.setEnabled(True)
+            self.form.upload_btn.click()
 
-        # now dialog should be open:
-        self.dialog = self.form.dialog
-        self.assertTrue(self.dialog)  # dialog is called
+            # now dialog should be open:
+            self.dialog = self.form.dialog
+            self.assertTrue(self.dialog)  # dialog is called
 
-        # use dialog to create appropriate restricted reference:
-        self.dialog.proceed_btn1.click()
-        self.dialog.hla_btn.click()
-        self.dialog.proceed_btn2.click()
-        for i in range(self.dialog.allele_table.table.rowCount()):
-            txt = self.dialog.allele_table.table.item(i, 0).text()
-            if txt in self.ref_alleles:
-                self.dialog.allele_table.table.selectRow(i)
-                self.dialog.allele_table.table.setCurrentCell(i, 0)
-                self.dialog.allele_table.table.remember_chosen()
+            # use dialog to create appropriate restricted reference:
+            self.dialog.proceed_btn1.click()
+            self.dialog.hla_btn.click()
+            self.dialog.proceed_btn2.click()
+            for i in range(self.dialog.allele_table.table.rowCount()):
+                txt = self.dialog.allele_table.table.item(i, 0).text()
+                if txt in self.ref_alleles:
+                    self.dialog.allele_table.table.selectRow(i)
+                    self.dialog.allele_table.table.setCurrentCell(i, 0)
+                    self.dialog.allele_table.table.remember_chosen()
 
-        self.assertEqual(self.dialog.allele_table.count_field.text(), str(len(self.ref_alleles)))
-        self.assertEqual(self.dialog.chosen_alleles, self.ref_alleles)
+            self.assertEqual(self.dialog.allele_table.count_field.text(), str(len(self.ref_alleles)))
+            self.assertEqual(self.dialog.chosen_alleles, self.ref_alleles)
 
-        self.dialog.proceed_btn3.click()
-        self.dialog.proceed_btn4.click()
+            self.dialog.proceed_btn3.click()
+            self.dialog.proceed_btn4.click()
 
-        # continue with NewAlleleForm:
-        self.form.allele1_sec.checkbox.setChecked(True)  # choose first allele
+            # continue with NewAlleleForm:
+            self.form.allele1_sec.checkbox.setChecked(True)  # choose first allele
 
-        self.form.ok_btn.click()
-        self.form.save_btn.click()
+            self.form.ok_btn.click()
+            self.dialog = self.form.dialog
+            self.form.save_btn.click()
 
-        # check results:
-        new_ena_file_path = os.path.join(curr_settings["projects_dir"], self.project_name,
-                                         self.sample_id_int,
-                                         f"DKMS-LSL_{self.sample_id_int}_B_1.ena.txt")
-        reference_file_path = os.path.join(self.mydir, "result.ena.txt")
+            # check results:
+            new_ena_file_path = os.path.join(curr_settings["projects_dir"], self.project_name,
+                                             self.sample_id_int,
+                                             f"DKMS-LSL_{self.sample_id_int}_B_1.ena.txt")
+            reference_file_path = os.path.join(self.mydir, "result.ena.txt")
 
-        diff_ena_files = compare_2_files(new_ena_file_path, reference_file_path)
-        self.assertEqual(len(diff_ena_files["added_sings"]), 0)
-        self.assertEqual(len(diff_ena_files["deleted_sings"]), 0)
+            diff_ena_files = compare_2_files(new_ena_file_path, reference_file_path)
+            self.assertEqual(len(diff_ena_files["added_sings"]), 0)
+            self.assertEqual(len(diff_ena_files["deleted_sings"]), 0)
 
     def test6_test_restricted_db_moved(self):
         """test that restricted db files were moved to the sample's dir
