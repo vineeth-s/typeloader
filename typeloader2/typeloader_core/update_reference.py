@@ -6,6 +6,7 @@ update_referce.py
 handles updating of the reference data for TypeLoader
 """
 import os
+import zipfile
 from pathlib import Path
 import datetime
 import re, subprocess, shutil, socket
@@ -21,25 +22,25 @@ else:
     from . import hla_embl_parser
 
 remote_db_path = {
-    "hla_path": "https://github.com/DKMS-LSL/IMGTHLA/raw/Latest/hla.dat",
+    "hla_path": "https://github.com/DKMS-LSL/IMGTHLA2/raw/Latest/hla.dat.zip",
     "kir_path": "https://github.com/DKMS-LSL/IPDKIR/raw/Latest/KIR.dat"
 }
 
 remote_db_path_old_files = {
-    "hla_path": "https://media.githubusercontent.com/media/ANHIG/IMGTHLA/VERSION/hla.dat",
-    "kir_path": "https://raw.githubusercontent.com/ANHIG/IPDKIR/VERSION/KIR.dat"
+    "hla_path": "https://github.com/ANHIG/IMGTHLA/raw/VERSION/hla.dat.zip",
+    "kir_path": "https://github.com/ANHIG/IPDKIR/raw/VERSION/KIR.dat"
 }
 
 remote_checksumfile_index = {
-    "kir_checksums_file": "https://raw.githubusercontent.com/DKMS-LSL/IPDKIR/Latest/md5checksum.txt",
-    "hla_checksums_file": "https://raw.githubusercontent.com/DKMS-LSL/IMGTHLA/Latest/md5checksum.txt"
+    "hla_checksums_file": "https://raw.githubusercontent.com/DKMS-LSL/IMGTHLA2/Latest/md5checksum.txt",
+    "kir_checksums_file": "https://raw.githubusercontent.com/DKMS-LSL/IPDKIR/Latest/md5checksum.txt"
 }
 
 COUNTRY_URL = "https://raw.githubusercontent.com/DKMS-LSL/typeloader_reference_parser/master/data/countries.csv"
 COUNTRY_FILE = "collection_country_options.csv"
 
 
-def read_remote_file(myurl, proxy, timeout, log, return_binary=False):
+def read_remote_file(myurl, proxy, timeout, log, return_binary=False, to_file=None):
     """reads a remote file from a given URL, either using the given proxy or not if none is given,
     returns the data as string
     """
@@ -52,11 +53,17 @@ def read_remote_file(myurl, proxy, timeout, log, return_binary=False):
         opener = urllib.request.build_opener()
 
     with opener.open(myurl, timeout=timeout) as request:
-        html = request.read()
         if return_binary:
-            return html
-        data = html.decode("UTF-8", "ignore")
-    return data
+            if to_file:
+                with open(to_file, 'wb') as g:
+                    shutil.copyfileobj(request, g)
+                return True
+            else:
+                return request.read()
+        else:
+            html = request.read()
+            data = html.decode("UTF-8", "ignore")
+            return data
 
 
 def read_local_md5_checkfile(ref_path: str, db_name: str, log) -> Tuple[str | None, bool]:
@@ -86,7 +93,7 @@ def read_local_md5_checkfile(ref_path: str, db_name: str, log) -> Tuple[str | No
 
 
 def get_remote_md5checksum(db_name, IPD_db_name, proxy, log):
-    """retrieves MD5 checksum from IPD's checksum_file 
+    """retrieves MD5 checksum from IPD's checksum_file
     """
     log.debug("\tGetting checksum of current remote file...")
     remote_checksumfile = remote_checksumfile_index["%s_checksums_file" % db_name]
@@ -95,25 +102,26 @@ def get_remote_md5checksum(db_name, IPD_db_name, proxy, log):
     checksum_data = read_remote_file(remote_checksumfile, proxy, 10, log)
 
     # The checksum_data are in lines of the form MD5 (hla.dat) = 2dde3a26abf52c11a70aae7fa8f14666\n
-    pattern = ".*%s.dat\) = (.*)\n" % IPD_db_name
-    datFile_regex = re.compile(pattern)
-    match = datFile_regex.search(checksum_data)
-    if match:
-        md5 = match.groups()[0]
-        log.debug("\t=> {}".format(md5))
-        return md5
+    for pattern in [f".*{IPD_db_name}.dat.zip\) = (.*)\n", f".*{IPD_db_name}.dat\) = (.*)\n"]:
+        datFile_regex = re.compile(pattern)
+        match = datFile_regex.search(checksum_data)
+        if match:
+            md5 = match.groups()[0]
+            log.debug("\t=> {}".format(md5))
+            return md5
 
     # try different pattern because IPD is stupidly inconsistent:
-    pattern2 = "\w+\s+ *%s.dat\n" % IPD_db_name
-    datFile_regex2 = re.compile(pattern2)
-    match = datFile_regex2.search(checksum_data)
-    if match:
-        md5 = match.group().split()[0]
-        log.debug("\t=> {}".format(md5))
-    else:
-        md5 = None
-        msg = "Could not find MD5 checksum of remote {} file!".format(IPD_db_name)
-        log.error(msg)
+    for pattern2 in [f"\w+\s+ *{IPD_db_name}.dat.zip\n", f"\w+\s+ *{IPD_db_name}.dat\n"]:
+        datFile_regex2 = re.compile(pattern2)
+        match = datFile_regex2.search(checksum_data)
+        if match:
+            md5 = match.group().split()[0]
+            log.debug("\t=> {}".format(md5))
+            return md5
+
+    md5 = None
+    msg = "Could not find MD5 checksum of remote {} file!".format(IPD_db_name)
+    log.error(msg)
     return md5
 
 
@@ -166,7 +174,7 @@ def check_database(db_name, reference_local_path, proxy, log, skip_if_updated_to
     """
     log.info("Checking {} for IPD update...".format(db_name.upper()))
     if db_name == "kir":
-        use_dbname = "KIR"  # biological databases and consistency in naming are arch enemies 
+        use_dbname = "KIR"  # biological databases and consistency in naming are arch enemies
     else:
         use_dbname = db_name
 
@@ -201,9 +209,11 @@ def update_database(db_name, reference_local_path, blast_path, proxy, log, versi
     """
     log.info("Retrieving new database version for {}...".format(db_name))
     if db_name == "kir":
-        use_dbname = "KIR"  # biological databases and consistency in naming are arch enemies 
+        use_dbname = "KIR"  # biological databases and consistency in naming are arch enemies
+        is_zipped = False
     else:
         use_dbname = db_name
+        is_zipped = True
 
     ref_path_temp = os.path.join(reference_local_path, "temp")
     os.makedirs(ref_path_temp, exist_ok=True)
@@ -212,16 +222,23 @@ def update_database(db_name, reference_local_path, blast_path, proxy, log, versi
         remote_db_file = remote_db_path_old_files["%s_path" % db_name].replace("VERSION", version)
     else:
         remote_db_file = remote_db_path["%s_path" % db_name]
-
     log.debug(f"\tdownloading new file from {remote_db_file}...")
     local_db_file = os.path.join(ref_path_temp, "%s.dat" % use_dbname)
 
     try:
-        db_response = read_remote_file(remote_db_file, proxy, 60, log, return_binary=True)
-        with open(local_db_file, "wb") as db_local:
-            db_local.write(db_response)
+        if is_zipped:
+            local_db_file_zipped = local_db_file + ".zip"
+            read_remote_file(remote_db_file, proxy, 60, log, return_binary=True, to_file=local_db_file_zipped)
+            local_md5 = get_local_md5checksum(local_db_file_zipped, log)
+            with zipfile.ZipFile(local_db_file_zipped) as zf:
+                zf.extractall(ref_path_temp)
+        else:
+            db_response = read_remote_file(remote_db_file, proxy, 60, log, return_binary=True)
+            with open(local_db_file, "wb") as db_local:
+                db_local.write(db_response)
+            local_md5 = get_local_md5checksum(local_db_file, log)
+
         log.debug("\t => successfully downloaded new {} file".format(db_name))
-        local_md5 = get_local_md5checksum(local_db_file, log)
         log.debug(f"\t => MD5 of downloaded file: {local_md5}")
     except urllib.error.HTTPError:
         msg = f"Sorry, could not find file {remote_db_file}!\n\n" \
@@ -344,7 +361,7 @@ def start_log(include_lines=False, error_to_email=False, info_to_file=False,
     stream_handler.setFormatter(formatter)
     log.addHandler(stream_handler)
 
-    # establish email handler, if needed: (level ERROR)  
+    # establish email handler, if needed: (level ERROR)
     if error_to_email:
         myport = 25
         myserver = '192.168.2.23'
@@ -397,5 +414,10 @@ if __name__ == '__main__':
     log = start_log(level="DEBUG")
     log.info("<Start>")
     # proxy = "10.78.205.144:3128"
-    reference_dir = r"\\nasdd12\daten\data\Typeloader\_general\reference_data"
-    update_country_data(reference_dir, None, log)
+
+    db_name = "hla"
+    reference_local_path = r"\\labor.local\data\Typeloader\_general\reference_data"
+    blast_path = r"C:\Users\schoene\WorkFolders\Code\typeloader2\typeloader2\blastn"
+    proxy=None
+
+    update_database(db_name, reference_local_path, blast_path, proxy, log, version=None)

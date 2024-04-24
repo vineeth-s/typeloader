@@ -67,7 +67,7 @@ def read_dat_file(dat_file, target, log, isENA = False, verbose = False):
         curr_release_pattern1 = "\(rel. (.*?), current release"
         curr_release_regex1 = re.compile(curr_release_pattern1)
     else:
-        curr_release_pattern1 = "\(rel. (.*?), last updated"
+        curr_release_pattern1 = "CC  .* Release Version (.*)"
         curr_release_regex1 = re.compile(curr_release_pattern1)
 
     if verbose:
@@ -109,6 +109,11 @@ def read_dat_file(dat_file, target, log, isENA = False, verbose = False):
 
             elif line.startswith("DT"):
                 line = line.lower()
+                match = curr_release_regex1.search(line)
+                if match:
+                    version = match.groups()[0]
+
+            elif line.startswith("CC"):
                 match = curr_release_regex1.search(line)
                 if match:
                     version = match.groups()[0]
