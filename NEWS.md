@@ -1,5 +1,18 @@
 # Version History
 
+## 2.15.0 (2024-04-24)
+## Features:
+- added support for DRB345 [TL2-286]
+
+## Bugfixes:
+- add warning for 5' overhang edgecase [TL2-293]
+- unnecessary popup warning for LSL-internal users removed [TL2-289]
+
+## Backend:
+- adjusted to changes of hla.dat by IPD [TL2-292] 
+- ENA Webin-CLI update to 7.1.1 [TL2-291]
+- poetry update [TL2-296]
+
 ## 2.14.2 (2023-10-11)
 ## Bugfixes:
 - retrieve ENA accessions via proxy if specified [TL2-278]
