@@ -62,7 +62,7 @@ class BuildCommand(distutils.command.build.build):
 #     sys.stderr = log_file
 
 setup(name="TypeLoader",
-      version="2.14.2",
+      version="2.15.0",
       description="TypeLoader",
       package_dir={"": "."},
       options={"build_exe": build_exe_options},
